@@ -1,0 +1,8 @@
+flask
+flask-socketio
+opencv-python
+mediapipe
+protobuf<4.0.0
+numpy
+Pillow
+eventlet

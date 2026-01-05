@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Gym Coach Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #7000ff;
+            --danger: #ff0055;
+            --success: #00ff9d;
+            --bg: #0a0a0f;
+            --card-bg: rgba(20, 20, 30, 0.8);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: white;
+            font-family: 'Exo 2', 'Noto Sans TC', sans-serif;
+            height: 100vh;
+            display: grid;
+            grid-template-areas:
+                "header header header"
+                "left video right"
+                "footer footer footer";
+            grid-template-rows: 60px 1fr 40px;
+            grid-template-columns: 300px 1fr 300px;
+            overflow: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(112, 0, 255, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.1) 0%, transparent 20%);
+        }
+
+        /* Scanline Effect */
+        body::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        header {
+            grid-area: header;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, var(--primary), white);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
+        }
+
+        .panel {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        #left-panel {
+            grid-area: left;
+        }
+
+        #right-panel {
+            grid-area: right;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--border);
+        }
+
+        .stat-card.active-left::before {
+            background: var(--primary);
+            box-shadow: 0 0 15px var(--primary);
+        }
+
+        .stat-card.active-right::before {
+            background: var(--secondary);
+            box-shadow: 0 0 15px var(--secondary);
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .metric-value {
+            font-size: 48px;
+            font-weight: 700;
+            font-family: 'Exo 2', sans-serif;
+            text-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .metric-unit {
+            font-size: 14px;
+            color: #666;
+            font-weight: 400;
+            margin-left: 5px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 10px;
+        }
+
+        .sub-metric {
+            font-size: 24px;
+            color: #ddd;
+        }
+
+        .sub-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .status-badge {
+            margin-top: 15px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 14px;
+            text-align: center;
+            border: 1px solid var(--border);
+            font-weight: bold;
+        }
+
+        .status-badge.good {
+            background: rgba(0, 255, 157, 0.1);
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .status-badge.bad {
+            background: rgba(255, 0, 85, 0.1);
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .status-badge.warn {
+            background: rgba(255, 200, 0, 0.1);
+            border-color: #ffc800;
+            color: #ffc800;
+        }
+
+        /* Video Area */
+        #video-container {
+            grid-area: video;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            overflow: hidden;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.8);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            opacity: 1;
+            /* Fade in handled by transition if needed */
+        }
+
+        video {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            /* Hidden source */
+        }
+
+        /* Footer */
+        footer {
+            grid-area: footer;
+            background: #050508;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 12px;
+            color: #444;
+            justify-content: space-between;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #333;
+        }
+
+        .indicator.active {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>AI GYM COACH <span style="font-size: 12px; vertical-align: super; opacity: 0.7;">PRO</span></h1>
+    </header>
+
+    <div id="left-panel" class="panel">
+        <div class="stat-card active-left">
+            <div class="card-title">Left Arm <span style="color:var(--primary)">◉</span></div>
+            <div class="metric-value" id="left-count">0<span class="metric-unit">REPS</span></div>
+            <div class="metric-row">
+                <div>
+                    <div class="sub-label">ANGLE</div>
+                    <div class="sub-metric" id="left-angle">0°</div>
+                </div>
+                <div>
+                    <div class="sub-label">SPEED</div>
+                    <div class="sub-metric" id="left-speed">0.0</div>
+                </div>
+            </div>
+            <div id="left-status" class="status-badge">READY</div>
+        </div>
+    </div>
+
+    <div id="video-container">
+        <!-- Hidden video source -->
+        <video id="videoElement" autoplay playsinline></video>
+        <!-- Display canvas -->
+        <canvas id="canvasElement"></canvas>
+    </div>
+
+    <div id="right-panel" class="panel">
+        <div class="stat-card active-right">
+            <div class="card-title">Right Arm <span style="color:var(--secondary)">◉</span></div>
+            <div class="metric-value" id="right-count">0<span class="metric-unit">REPS</span></div>
+            <div class="metric-row">
+                <div>
+                    <div class="sub-label">ANGLE</div>
+                    <div class="sub-metric" id="right-angle">0°</div>
+                </div>
+                <div>
+                    <div class="sub-label">SPEED</div>
+                    <div class="sub-metric" id="right-speed">0.0</div>
+                </div>
+            </div>
+            <div id="right-status" class="status-badge">READY</div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="connection-status">
+            <div class="indicator" id="conn-indicator"></div>
+            <span id="conn-text">Connecting to System...</span>
+        </div>
+        <div>v1.7.2 Professional Build</div>
+    </footer>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvasElement');
+        const ctx = canvas.getContext('2d');
+        const connText = document.getElementById('conn-text');
+        const connInd = document.getElementById('conn-indicator');
+
+        const socket = io();
+        let isProcessing = false;
+
+        // Start Camera
+        navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
+            .then(stream => {
+                video.srcObject = stream;
+                connText.innerText = "Camera Active. Connecting Socket...";
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    startProcessing();
+                };
+            })
+            .catch(err => {
+                connText.innerText = "Camera Error: " + err;
+                connText.style.color = "var(--danger)";
+            });
+
+        function startProcessing() {
+            setInterval(() => {
+                if (isProcessing) return;
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                // Mirror logic
+                tempCtx.translate(canvas.width, 0);
+                tempCtx.scale(-1, 1);
+                tempCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const dataURL = tempCanvas.toDataURL('image/jpeg', 0.5); // Optimize quality/speed
+
+                isProcessing = true;
+                socket.emit('process_frame', { image: dataURL });
+            }, 80); // ~12 FPS
+        }
+
+        function updateCard(side, data) {
+            if (!data) return;
+            document.getElementById(`${side}-count`).innerText = data.count;
+            document.getElementById(`${side}-angle`).innerText = data.angle + '°';
+            document.getElementById(`${side}-speed`).innerText = data.speed;
+
+            const badge = document.getElementById(`${side}-status`);
+            badge.innerText = data.feedback;
+
+            // Logic for badge color
+            badge.className = 'status-badge'; // reset
+            if (data.feedback.includes("太快") || data.feedback.includes("太低")) {
+                badge.classList.add('bad');
+            } else if (data.feedback.includes("請")) {
+                badge.classList.add('warn');
+            } else {
+                badge.classList.add('good');
+            }
+        }
+
+        socket.on('response', (data) => {
+            isProcessing = false;
+
+            if (data.image) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                };
+                img.src = data.image;
+            }
+
+            if (data.stats) {
+                updateCard('left', data.stats.Left);
+                updateCard('right', data.stats.Right);
+            }
+        });
+
+        socket.on('connect', () => {
+            connText.innerText = "SYSTEM ONLINE";
+            connText.style.color = "var(--success)";
+            connInd.classList.add('active');
+        });
+
+        socket.on('disconnect', () => {
+            connText.innerText = "CONNECTION LOST";
+            connText.style.color = "var(--danger)";
+            connInd.classList.remove('active');
+        });
+    </script>
+</body>
+
+</html>
