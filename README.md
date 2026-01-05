@@ -1,4 +1,4 @@
-# README.md
+# AI Gym Coach Pro
 
 ## 1. 專案總覽 (Project Overview)
 
@@ -166,3 +166,4 @@ python web_app.py
 
 - **環境變數**: 程式碼中強制設定了 `os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"` (Line 4)，這是為了解決某些版本 protobuf 與 mediapipe 的相容性崩潰問題，**請勿移除**。
 - **中文字型**: 程式碼嘗試載入系統中文字型，主要是為了在 OpenCV 圖片上壓上中文浮水印，但目前主要資訊回饋已移至 HTML UI 層，圖片上的文字非必要功能。
+
